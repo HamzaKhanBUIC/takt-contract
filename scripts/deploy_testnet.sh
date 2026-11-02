@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PATH="$HOME/.local/bin:$PATH"
+STELLAR_BIN="${STELLAR_BIN:-$(command -v soroban || command -v stellar)}"
+
 NETWORK="${STELLAR_NETWORK:-testnet}"
 IDENTITY="${STELLAR_IDENTITY:-deployer}"
 MIN_STAKE="${MIN_STAKE:-1000000000}"       # 100 tokens (7 decimals)
@@ -8,30 +11,30 @@ UNBOND_PERIOD="${UNBOND_PERIOD:-86400}"    # 24 hours in seconds
 FEE_BPS="${FEE_BPS:-500}"                  # 5.00% protocol fee
 
 echo "==> [1/6] Building Soroban WASM contracts..."
-stellar contract build
+"$STELLAR_BIN" contract build
 
 WASM_DIR="target/wasm32v1-none/release"
 if [ ! -d "$WASM_DIR" ]; then
   WASM_DIR="target/wasm32-unknown-unknown/release"
 fi
 
-ADMIN_ADDR=$(stellar keys address "$IDENTITY")
+ADMIN_ADDR=$("$STELLAR_BIN" keys address "$IDENTITY")
 TREASURY_ADDR="${TREASURY_ADDRESS:-$ADMIN_ADDR}"
 
 if [ -z "${STAKE_TOKEN_ADDRESS:-}" ]; then
   echo "==> Wrapping native XLM asset on $NETWORK for stake/bounty token..."
-  STAKE_TOKEN_ADDRESS=$(stellar contract asset deploy --asset native --source "$IDENTITY" --network "$NETWORK" 2>/dev/null || stellar contract id asset --asset native --network "$NETWORK")
+  STAKE_TOKEN_ADDRESS=$("$STELLAR_BIN" contract asset deploy --asset native --source "$IDENTITY" --network "$NETWORK" 2>/dev/null || "$STELLAR_BIN" contract id asset --asset native --network "$NETWORK")
 fi
 BOUNTY_TOKEN_ADDRESS="${BOUNTY_TOKEN_ADDRESS:-$STAKE_TOKEN_ADDRESS}"
 
 echo "==> [2/6] Deploying keeper-registry..."
-KEEPER_REGISTRY_ID=$(stellar contract deploy \
+KEEPER_REGISTRY_ID=$("$STELLAR_BIN" contract deploy \
   --wasm "$WASM_DIR/keeper_registry.wasm" \
   --source "$IDENTITY" \
   --network "$NETWORK")
 
 echo "==> Initializing keeper-registry ($KEEPER_REGISTRY_ID)..."
-stellar contract invoke \
+"$STELLAR_BIN" contract invoke \
   --id "$KEEPER_REGISTRY_ID" \
   --source "$IDENTITY" \
   --network "$NETWORK" \
@@ -43,13 +46,13 @@ stellar contract invoke \
   --unbond_period "$UNBOND_PERIOD"
 
 echo "==> [3/6] Deploying bounty-vault..."
-BOUNTY_VAULT_ID=$(stellar contract deploy \
+BOUNTY_VAULT_ID=$("$STELLAR_BIN" contract deploy \
   --wasm "$WASM_DIR/bounty_vault.wasm" \
   --source "$IDENTITY" \
   --network "$NETWORK")
 
 echo "==> Initializing bounty-vault ($BOUNTY_VAULT_ID)..."
-stellar contract invoke \
+"$STELLAR_BIN" contract invoke \
   --id "$BOUNTY_VAULT_ID" \
   --source "$IDENTITY" \
   --network "$NETWORK" \
@@ -61,13 +64,13 @@ stellar contract invoke \
   --treasury "$TREASURY_ADDR"
 
 echo "==> [4/6] Deploying job-engine..."
-JOB_ENGINE_ID=$(stellar contract deploy \
+JOB_ENGINE_ID=$("$STELLAR_BIN" contract deploy \
   --wasm "$WASM_DIR/job_engine.wasm" \
   --source "$IDENTITY" \
   --network "$NETWORK")
 
 echo "==> Initializing job-engine ($JOB_ENGINE_ID)..."
-stellar contract invoke \
+"$STELLAR_BIN" contract invoke \
   --id "$JOB_ENGINE_ID" \
   --source "$IDENTITY" \
   --network "$NETWORK" \
@@ -78,7 +81,7 @@ stellar contract invoke \
   --bounty_vault "$BOUNTY_VAULT_ID"
 
 echo "==> [5/6] Authorizing job-engine in keeper-registry..."
-stellar contract invoke \
+"$STELLAR_BIN" contract invoke \
   --id "$KEEPER_REGISTRY_ID" \
   --source "$IDENTITY" \
   --network "$NETWORK" \
@@ -87,7 +90,7 @@ stellar contract invoke \
   --engine "$JOB_ENGINE_ID"
 
 echo "==> [6/6] Authorizing job-engine in bounty-vault..."
-stellar contract invoke \
+"$STELLAR_BIN" contract invoke \
   --id "$BOUNTY_VAULT_ID" \
   --source "$IDENTITY" \
   --network "$NETWORK" \

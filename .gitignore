@@ -5,3 +5,5 @@ Cargo.lock
 .env
 .stellar/
 *.wasm
+**/test_snapshots/
+
