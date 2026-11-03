@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Soroban SDK](https://img.shields.io/badge/Soroban%20SDK-22.0.0-purple.svg)](https://crates.io/crates/soroban-sdk)
 
-Decentralized automation engine, keeper registry, and escrowed bounty vault built on the Stellar Soroban smart contract platform.
+Decentralized task scheduling and bounty-incentivized keeper execution primitive on Stellar Soroban.
 
 ---
 
@@ -46,6 +46,16 @@ bounty-vault    (2) <---+--- job-engine (3)
 - **`keeper-registry`:** [`CDSBDXYELFFHM7XMG4D4BXEVETOHQDWPQOTQLPRHGTTVW7DTNODHIIZN`](https://stellar.expert/explorer/testnet/contract/CDSBDXYELFFHM7XMG4D4BXEVETOHQDWPQOTQLPRHGTTVW7DTNODHIIZN)
 - **`bounty-vault`:** [`CDDIJAZCXR7TWSTI4B2FSE7MCXFKH2JVOBT4WELSSJLZHV5XQ4PKHEGO`](https://stellar.expert/explorer/testnet/contract/CDDIJAZCXR7TWSTI4B2FSE7MCXFKH2JVOBT4WELSSJLZHV5XQ4PKHEGO)
 - **`job-engine`:** [`CC6ZSDYSGFAZDJ2FP2RT2ZV6NUZN4OFEWYNIS3CYOG2CBG7DIJDCWYOT`](https://stellar.expert/explorer/testnet/contract/CC6ZSDYSGFAZDJ2FP2RT2ZV6NUZN4OFEWYNIS3CYOG2CBG7DIJDCWYOT)
+
+---
+
+## Project Status & Current Limitations
+
+- **Stage:** Alpha / Stellar Testnet Only (`Test SDF Network ; September 2015`).
+- **Audit Status:** Unaudited. Do not deploy with mainnet funds until formal security review is completed.
+- **Trust Assumptions & Roadmap:**
+  - `initialize`, `set_engine`, and `slash_keeper` are currently governed by a single configured `admin` address (`GBKGRYZZEELD6POCG5E3MNMA3CT7OKF45CUX3FUDSJH6NJXAMTPXIYRS` on Testnet). Migrating admin controls to a multi-sig / timelock contract is planned on the roadmap.
+  - Target contract execution (`execute_job`) dispatches cross-contract calls (`env.invoke_contract`) without caller reentrancy guards beyond Soroban's native host frame isolation.
 
 ---
 
