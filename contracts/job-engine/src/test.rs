@@ -194,3 +194,58 @@ fn test_pause_resume_and_cancel_with_escrow_refund() {
     assert_eq!(f.vault.get_user_balance(&owner), 1_000_000);
     assert_eq!(f.engine.get_job(&job_id).status, JobStatus::Cancelled);
 }
+
+#[test]
+fn test_create_job_forbids_privileged_protocol_contracts() {
+    let f = setup_fixture();
+
+    let owner = Address::generate(&f.env);
+    f.token_admin_client.mint(&owner, &1_000_000);
+    f.vault.deposit(&owner, &1_000_000);
+
+    let dummy_fn = Symbol::new(&f.env, "increment");
+    let args: Vec<Val> = vec![&f.env, 1u32.into_val(&f.env)];
+
+    // 1. Attempt to target keeper_registry
+    let res_registry = f.engine.try_create_job(
+        &owner,
+        &f.registry.address,
+        &dummy_fn,
+        &args,
+        &60,
+        &100_000,
+        &1,
+        &100_000,
+    );
+    assert_eq!(res_registry, Err(Ok(EngineError::ForbiddenTarget)));
+
+    // 2. Attempt to target bounty_vault
+    let res_vault = f.engine.try_create_job(
+        &owner,
+        &f.vault.address,
+        &dummy_fn,
+        &args,
+        &60,
+        &100_000,
+        &1,
+        &100_000,
+    );
+    assert_eq!(res_vault, Err(Ok(EngineError::ForbiddenTarget)));
+
+    // 3. Attempt to target job_engine itself
+    let res_engine = f.engine.try_create_job(
+        &owner,
+        &f.engine.address,
+        &dummy_fn,
+        &args,
+        &60,
+        &100_000,
+        &1,
+        &100_000,
+    );
+    assert_eq!(res_engine, Err(Ok(EngineError::ForbiddenTarget)));
+
+    // Verify no jobs were registered and owner vault balance remained untouched
+    assert_eq!(f.engine.get_total_jobs(), 0);
+    assert_eq!(f.vault.get_user_balance(&owner), 1_000_000);
+}

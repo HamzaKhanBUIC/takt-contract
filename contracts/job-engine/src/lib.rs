@@ -65,7 +65,16 @@ impl JobEngine {
             return Err(EngineError::InsufficientInitialFunding);
         }
 
+        let registry_addr = storage::get_keeper_registry(&env)?;
         let vault_addr = storage::get_bounty_vault(&env)?;
+        let current_contract = env.current_contract_address();
+
+        if target_contract == registry_addr
+            || target_contract == vault_addr
+            || target_contract == current_contract
+        {
+            return Err(EngineError::ForbiddenTarget);
+        }
         let job_id = storage::get_next_job_id(&env);
         let next_id = job_id.checked_add(1).ok_or(EngineError::Overflow)?;
         storage::set_next_job_id(&env, next_id);
