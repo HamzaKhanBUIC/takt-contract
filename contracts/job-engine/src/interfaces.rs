@@ -17,4 +17,5 @@ pub trait BountyVaultInterface {
     ) -> (i128, i128);
     fn refund_job(env: Env, job_id: u64, owner: Address) -> i128;
     fn get_job_escrow(env: Env, job_id: u64) -> i128;
+    fn top_up_job(env: Env, owner: Address, job_id: u64, amount: i128) -> i128;
 }

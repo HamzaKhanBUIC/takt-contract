@@ -249,3 +249,101 @@ fn test_create_job_forbids_privileged_protocol_contracts() {
     assert_eq!(f.engine.get_total_jobs(), 0);
     assert_eq!(f.vault.get_user_balance(&owner), 1_000_000);
 }
+
+#[test]
+fn test_top_up_job_for_active_and_paused_jobs() {
+    let f = setup_fixture();
+
+    let owner = Address::generate(&f.env);
+    let sponsor = Address::generate(&f.env);
+
+    f.token_admin_client.mint(&owner, &1_000_000);
+    f.token_admin_client.mint(&sponsor, &1_000_000);
+
+    f.vault.deposit(&owner, &500_000);
+    f.vault.deposit(&sponsor, &500_000);
+
+    let args: Vec<Val> = vec![&f.env, 1u32.into_val(&f.env)];
+    let job_id = f.engine.create_job(
+        &owner,
+        &f.counter_addr,
+        &Symbol::new(&f.env, "increment"),
+        &args,
+        &30,
+        &100_000,
+        &0,
+        &200_000,
+    );
+    assert_eq!(f.vault.get_job_escrow(&job_id), 200_000);
+
+    // 1. Top up Active job by sponsor
+    let new_escrow = f.engine.top_up_job(&sponsor, &job_id, &150_000);
+    assert_eq!(new_escrow, 350_000);
+    assert_eq!(f.vault.get_job_escrow(&job_id), 350_000);
+    assert_eq!(f.vault.get_user_balance(&sponsor), 350_000);
+
+    // 2. Pause job and top up while Paused
+    f.engine.pause_job(&owner, &job_id);
+    let paused_escrow = f.engine.top_up_job(&owner, &job_id, &100_000);
+    assert_eq!(paused_escrow, 450_000);
+    assert_eq!(f.vault.get_job_escrow(&job_id), 450_000);
+    assert_eq!(f.vault.get_user_balance(&owner), 200_000);
+}
+
+#[test]
+fn test_top_up_job_rejection_for_completed_cancelled_and_invalid_amount() {
+    let f = setup_fixture();
+
+    let owner = Address::generate(&f.env);
+    let keeper = Address::generate(&f.env);
+
+    f.token_admin_client.mint(&owner, &2_000_000);
+    f.token_admin_client.mint(&keeper, &1_000_000);
+
+    f.registry.register_keeper(&keeper, &1_000_000);
+    f.vault.deposit(&owner, &1_000_000);
+
+    let args: Vec<Val> = vec![&f.env, 1u32.into_val(&f.env)];
+
+    // 1. Invalid amount rejected
+    let job_id1 = f.engine.create_job(
+        &owner,
+        &f.counter_addr,
+        &Symbol::new(&f.env, "increment"),
+        &args,
+        &30,
+        &100_000,
+        &1,
+        &100_000,
+    );
+    let zero_res = f.engine.try_top_up_job(&owner, &job_id1, &0);
+    assert_eq!(zero_res, Err(Ok(EngineError::InvalidBounty)));
+    let neg_res = f.engine.try_top_up_job(&owner, &job_id1, &-50_000);
+    assert_eq!(neg_res, Err(Ok(EngineError::InvalidBounty)));
+
+    // 2. Execute job to completion (max_runs = 1)
+    f.engine.execute_job(&keeper, &job_id1);
+    assert_eq!(f.engine.get_job(&job_id1).status, JobStatus::Completed);
+
+    // Top-up on Completed job must fail
+    let completed_res = f.engine.try_top_up_job(&owner, &job_id1, &50_000);
+    assert_eq!(completed_res, Err(Ok(EngineError::JobNotActive)));
+
+    // 3. Create another job and cancel it
+    let job_id2 = f.engine.create_job(
+        &owner,
+        &f.counter_addr,
+        &Symbol::new(&f.env, "increment"),
+        &args,
+        &30,
+        &100_000,
+        &0,
+        &100_000,
+    );
+    f.engine.cancel_job(&owner, &job_id2);
+    assert_eq!(f.engine.get_job(&job_id2).status, JobStatus::Cancelled);
+
+    // Top-up on Cancelled job must fail
+    let cancelled_res = f.engine.try_top_up_job(&owner, &job_id2, &50_000);
+    assert_eq!(cancelled_res, Err(Ok(EngineError::JobNotActive)));
+}
